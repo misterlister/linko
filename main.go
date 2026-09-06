@@ -25,12 +25,25 @@ func main() {
 }
 
 func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir string) int {
-	st, err := store.New(dataDir)
+	logger, closeFunc, err := initializeLogger(os.Getenv("LINKO_LOG_FILE"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create store: %v\n", err)
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		return 1
 	}
-	s := newServer(*st, httpPort, cancel)
+
+	defer func() {
+		err = closeFunc()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "something went wrong: %v\n", err)
+		}
+	}()
+
+	st, err := store.New(dataDir, logger)
+	if err != nil {
+		logger.Error(fmt.Sprintf("failed to create store: %v", err))
+		return 1
+	}
+	s := newServer(*st, httpPort, cancel, logger)
 	var serverErr error
 	go func() {
 		serverErr = s.start()
@@ -41,11 +54,11 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	defer cancel()
 
 	if err := s.shutdown(shutdownCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to shutdown server: %v\n", err)
+		logger.Error(fmt.Sprintf("failed to shutdown server: %v", err))
 		return 1
 	}
 	if serverErr != nil {
-		fmt.Fprintf(os.Stderr, "server error: %v\n", serverErr)
+		logger.Error(fmt.Sprintf("server error: %v", serverErr))
 		return 1
 	}
 	return 0
