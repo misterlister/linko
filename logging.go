@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"boot.dev/linko/internal/linkoerr"
 	pkgerr "github.com/pkg/errors"
 )
 
@@ -82,16 +83,24 @@ func replaceAttr(groups []string, a slog.Attr) slog.Attr {
 		if !ok {
 			return a
 		}
-		if stackErr, ok := errors.AsType[stackTracer](err); ok {
-			return slog.GroupAttrs("error", slog.Attr{
+
+		attributes := []slog.Attr{
+			{
 				Key:   "message",
-				Value: slog.StringValue(stackErr.Error()),
-			}, slog.Attr{
+				Value: slog.StringValue(err.Error()),
+			},
+		}
+
+		attributes = append(attributes, linkoerr.Attrs(err)...)
+
+		if stackErr, ok := errors.AsType[stackTracer](err); ok {
+			attributes = append(attributes, slog.Attr{
 				Key:   "stack_trace",
 				Value: slog.StringValue(fmt.Sprintf("%+v", stackErr.StackTrace())),
-			})
+			},
+			)
 		}
-		return slog.String("error", fmt.Sprintf("%+v", err))
+		return slog.GroupAttrs("error", attributes...)
 	}
 	return a
 }
