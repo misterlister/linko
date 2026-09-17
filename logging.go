@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
 )
 
 type closeFunc func() error
@@ -12,10 +15,13 @@ type closeFunc func() error
 func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 	noOpCloseFunc := func() error { return nil }
 
+	disableColour := !(isatty.IsCygwinTerminal(os.Stderr.Fd()) || isatty.IsTerminal(os.Stderr.Fd()))
+
 	if logFile != "" {
-		debugHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		debugHandler := tint.NewTextHandler(os.Stderr, &tint.Options{
 			Level:       slog.LevelDebug,
 			ReplaceAttr: replaceAttr,
+			NoColor:     disableColour,
 		})
 
 		file, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
@@ -51,5 +57,7 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 		return logger, closeFunc, nil
 	}
 
-	return slog.New(slog.NewTextHandler(os.Stderr, nil)), noOpCloseFunc, nil
+	return slog.New(tint.NewTextHandler(os.Stderr, &tint.Options{
+		NoColor: disableColour,
+	})), noOpCloseFunc, nil
 }
