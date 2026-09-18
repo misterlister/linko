@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -30,7 +32,7 @@ func requestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			logAttrs := []any{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.String("client_ip", r.RemoteAddr),
+				slog.String("client_ip", redactIP(r.RemoteAddr)),
 				slog.Duration("duration", time.Since(start)),
 				slog.Int("request_body_bytes", spyReader.bytesRead),
 				slog.Int("response_status", spyWriter.statusCode),
@@ -61,4 +63,22 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 		w.Header().Set(requestIDHeader, requestID)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func redactIP(address string) string {
+	host, _, err := net.SplitHostPort(address)
+
+	if err != nil {
+		return address
+	}
+
+	parsedAddress := net.ParseIP(host)
+
+	ipv4 := parsedAddress.To4()
+
+	if ipv4 == nil {
+		return address
+	}
+
+	return fmt.Sprintf("%d.%d.%d.x", ipv4[0], ipv4[1], ipv4[2])
 }
