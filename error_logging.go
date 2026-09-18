@@ -38,28 +38,3 @@ func errorAttrs(err error) []slog.Attr {
 	}
 	return attributes
 }
-
-func replaceAttr(groups []string, a slog.Attr) slog.Attr {
-	if a.Key == "error" {
-		err, ok := a.Value.Any().(error)
-		if !ok {
-			return a
-		}
-
-		if multiErr, ok := errors.AsType[multiError](err); ok {
-			errs := multiErr.Unwrap()
-			var errAttrSlice []slog.Attr
-
-			for i := range errs {
-				errName := fmt.Sprintf("error_%d", (i + 1))
-				newAttr := slog.GroupAttrs(errName, errorAttrs(errs[i])...)
-				errAttrSlice = append(errAttrSlice, newAttr)
-			}
-
-			return slog.GroupAttrs("errors", errAttrSlice...)
-		}
-
-		return slog.GroupAttrs("error", errorAttrs(err)...)
-	}
-	return a
-}
